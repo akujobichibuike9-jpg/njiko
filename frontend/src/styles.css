@@ -239,23 +239,36 @@ body{background:#050708}
 .ustore-mt { font-size: 11.5px; color: var(--muted); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* liquid-glass floating pill nav (partial width, shrinks on scroll) */
-.gnav { position: fixed; left: 50%; transform: translateX(-50%); bottom: 18px; z-index: 60;
-  display: flex; gap: 3px; padding: 7px;
+.gnav { position: fixed; left: 50%; transform: translateX(-50%); z-index: 60;
+  /* sit above the Android gesture bar on phones that have one */
+  bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  display: flex; gap: 2px; padding: 5px;
+  /* never wider than the screen — this is what got clipped on wider phones */
+  max-width: calc(100vw - 20px); box-sizing: border-box; overflow: hidden;
   background: rgba(18,24,26,.6); -webkit-backdrop-filter: blur(24px) saturate(170%); backdrop-filter: blur(24px) saturate(170%);
-  border: 1px solid rgba(255,255,255,.11); border-radius: 26px;
+  border: 1px solid rgba(255,255,255,.11); border-radius: 22px;
   box-shadow: 0 14px 40px -10px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.1);
   transition: gap .28s cubic-bezier(.22,1,.36,1); }
-.gnav-a { display: flex; align-items: center; gap: 7px; padding: 11px 15px; border-radius: 19px; color: var(--muted); text-decoration: none; font-family: var(--disp); font-weight: 600; font-size: 13px; transition: background .2s, padding .28s cubic-bezier(.22,1,.36,1); }
-.gnav-a svg { width: 21px; height: 21px; flex-shrink: 0; }
+/* thinner + shorter tabs; they may shrink rather than overflow */
+.gnav-a { display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 16px; min-width: 0; flex-shrink: 1;
+  color: var(--muted); text-decoration: none; font-family: var(--disp); font-weight: 600; font-size: 12px;
+  transition: background .2s, padding .28s cubic-bezier(.22,1,.36,1); }
+.gnav-a svg { width: 19px; height: 19px; flex-shrink: 0; }
 .gnav-a.on { background: linear-gradient(100deg, var(--accent), var(--accent-deep)); color: var(--acctxt); }
-.gnav-a .lbl { white-space: nowrap; overflow: hidden; max-width: 80px; opacity: 1; transition: max-width .28s cubic-bezier(.22,1,.36,1), opacity .18s, margin .28s; }
+.gnav-a .lbl { white-space: nowrap; overflow: hidden; text-overflow: clip; max-width: 72px; opacity: 1;
+  transition: max-width .28s cubic-bezier(.22,1,.36,1), opacity .18s, margin .28s; }
 /* shrink: non-active tabs collapse to icon-only */
-.gnav.mini .gnav-a:not(.on) { padding: 11px; }
-.gnav.mini .gnav-a:not(.on) .lbl { max-width: 0; opacity: 0; margin-left: -7px; }
+.gnav.mini .gnav-a:not(.on) { padding: 8px 9px; }
+.gnav.mini .gnav-a:not(.on) .lbl { max-width: 0; opacity: 0; margin-left: -6px; }
+/* very narrow phones: labels never force the pill past the edge */
+@media (max-width: 380px) {
+  .gnav-a { padding: 8px 10px; font-size: 11.5px; }
+  .gnav-a .lbl { max-width: 58px; }
+}
 .gnav-badge { position: absolute; top: -6px; right: -8px; background: var(--accent); color: var(--acctxt); font-family: var(--mono); font-size: 9px; font-weight: 700; min-width: 15px; height: 15px; border-radius: 999px; display: grid; place-items: center; padding: 0 3px; }
 
 /* checkout button floats clearly above the pill nav */
-.checkout-bar { bottom: 104px; background: none; padding: 0 18px; }
+.checkout-bar { bottom: calc(88px + env(safe-area-inset-bottom, 0px)); background: none; padding: 0 18px; }
 /* reset button styling for the shared glass nav (merchant/rider) */
 .gnav-a { border: none; background: transparent; cursor: pointer; }
 
