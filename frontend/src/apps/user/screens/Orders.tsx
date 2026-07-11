@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { cacheGet, cacheSet } from '../../../lib/cache';
 import { useNavigate } from 'react-router-dom';
 import { TopFilterNav } from '../../../ui/TopFilterNav';
 import { customerOrders, cancelOrder, orderEvents, statusMeta, groupOf, type Order, type OrderEvent } from '../../../lib/orders';
@@ -78,10 +79,11 @@ function OrderCard({ o, onChanged }: { o: Order; onChanged: () => void }) {
 }
 
 export function Orders() {
-  const [orders, setOrders] = useState<Order[] | null>(null);
+  // Seed from cache: returning to Orders shows the last list immediately, then polling refreshes it.
+  const [orders, setOrders] = useState<Order[] | null>(() => cacheGet<Order[]>('customerOrders') ?? null);
   const [group, setGroup] = useState('live');
 
-  const load = () => customerOrders().then((r) => setOrders(r.orders)).catch(() => setOrders((prev) => prev ?? []));
+  const load = () => customerOrders().then((r) => { cacheSet('customerOrders', r.orders); setOrders(r.orders); }).catch(() => setOrders((prev) => prev ?? []));
   useEffect(() => { load(); const t = setInterval(load, 5000); return () => clearInterval(t); }, []);
 
   const list = (orders ?? []).filter((o) => group === 'all' || groupOf(o.status) === group);

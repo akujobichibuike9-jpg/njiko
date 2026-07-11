@@ -66,6 +66,26 @@ function UserNav() {
   );
 }
 
+
+// The four main tabs stay mounted — switching tabs shows/hides instead of destroying and
+// refetching, so state and scroll are preserved and there is no re-mount flash.
+const TABS = ['/', '/orders', '/cart', '/profile'];
+function TabScreens({ onLogout }: { onLogout: () => void }) {
+  const loc = useLocation();
+  const path = loc.pathname;
+  const isTab = TABS.includes(path);
+  const onOverlay = !isTab; // a non-tab screen (store, track, history) is on top
+  const show = (p: string) => isTab && path === p;
+  return (
+    <div style={{ display: onOverlay ? 'none' : undefined }}>
+      <div style={{ display: show('/') ? undefined : 'none' }}><Home /></div>
+      <div style={{ display: show('/orders') ? undefined : 'none' }}><Orders /></div>
+      <div style={{ display: show('/cart') ? undefined : 'none' }}><CartPage /></div>
+      <div style={{ display: show('/profile') ? undefined : 'none' }}><Profile onLogout={onLogout} /></div>
+    </div>
+  );
+}
+
 export function UserApp() {
   setActiveRole('user');
   const [authed, setAuthed] = useState(isAuthed('user'));
@@ -76,15 +96,12 @@ export function UserApp() {
       <BrowserRouter>
         <AppShell accent="user">
           <SwipeBack />
+          <TabScreens onLogout={() => setAuthed(false)} />
           <Routes>
-            <Route path="/" element={<Home />} />
             <Route path="/store/:id" element={<StorePage />} />
-            <Route path="/cart" element={<CartPage />} />
-            <Route path="/orders" element={<Orders />} />
-            <Route path="/profile" element={<Profile onLogout={() => setAuthed(false)} />} />
             <Route path="/history" element={<OrderHistory />} />
             <Route path="/track/:id" element={<Track />} />
-            <Route path="*" element={<Home />} />
+            <Route path="*" element={null} />
           </Routes>
           <UserNav />
         </AppShell>

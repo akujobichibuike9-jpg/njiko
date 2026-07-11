@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useCached } from '../../../lib/cache';
 import { Link } from 'react-router-dom';
 import { api } from '../../../lib/api';
 import { getProfile } from '../../../lib/user';
@@ -14,16 +15,16 @@ const bell = (<svg viewBox="0 0 24 24" width="19" height="19" fill="none"><path 
 const pin = (<svg viewBox="0 0 24 24" width="12" height="12" fill="none"><path d="M12 21s7-6.3 7-11a7 7 0 10-14 0c0 4.7 7 11 7 11z" stroke="currentColor" strokeWidth="1.7" /><circle cx="12" cy="10" r="2.3" stroke="currentColor" strokeWidth="1.7" /></svg>);
 
 export function Home() {
-  const [name, setName] = useState<string>('');
-  const [address, setAddress] = useState<string | null>(null);
-  const [stores, setStores] = useState<StoreSummary[] | null>(null);
   const [cat, setCat] = useState('All');
 
-  useEffect(() => {
-    api<{ account: any }>('/auth/me').then((r) => setName((r.account?.name ?? '').split(' ')[0])).catch(() => {});
-    getProfile().then((r) => setAddress(r.profile?.address ?? null)).catch(() => {});
-    listStores().then((r) => setStores(r.stores)).catch(() => setStores([]));
-  }, []);
+  // Cached: revisiting Home paints instantly from the last data, then refreshes in the background.
+  const me = useCached('me', () => api<{ account: any }>('/auth/me'));
+  const prof = useCached('profile', () => getProfile());
+  const st = useCached('stores', () => listStores());
+
+  const name = (me.data?.account?.name ?? '').split(' ')[0];
+  const address = prof.data?.profile?.address ?? null;
+  const stores: StoreSummary[] | null = st.data ? st.data.stores : (st.loading ? null : []);
 
   const categories = useMemo(() => {
     const set = new Set<string>();
