@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
+import { cacheGet, cacheSet } from '../../../lib/cache';
 import { IconInbox } from '../../../ui/icons';
 import { availableJobs, acceptJob, type Order } from '../../../lib/orders';
 
 export function Jobs() {
   const [online, setOnline] = useState(true);
-  const [jobs, setJobs] = useState<Order[] | null>(null);
+  const [jobs, setJobs] = useState<Order[] | null>(() => cacheGet<Order[]>('riderJobs') ?? null);
   const [busy, setBusy] = useState<string | null>(null);
 
-  const load = () => availableJobs().then((r) => setJobs(r.orders)).catch(() => setJobs([]));
+  const load = () => availableJobs().then((r) => { cacheSet('riderJobs', r.orders); setJobs(r.orders); }).catch(() => setJobs((prev) => prev ?? []));
   useEffect(() => { load(); const t = setInterval(load, 6000); return () => clearInterval(t); }, []);
 
   async function accept(id: string) {

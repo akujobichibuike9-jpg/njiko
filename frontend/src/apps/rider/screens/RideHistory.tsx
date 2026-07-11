@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { cacheGet, cacheSet } from '../../../lib/cache';
 import { riderHistory, orderEvents, statusMeta, type Order, type OrderEvent } from '../../../lib/orders';
 
 const back = (<svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M15 6l-6 6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>);
@@ -33,8 +34,8 @@ function RideCard({ o }: { o: Order }) {
 }
 
 export function RideHistory({ onBack }: { onBack: () => void }) {
-  const [orders, setOrders] = useState<Order[] | null>(null);
-  useEffect(() => { riderHistory().then((r) => setOrders(r.orders)).catch(() => setOrders([])); }, []);
+  const [orders, setOrders] = useState<Order[] | null>(() => cacheGet<Order[]>('riderHistory') ?? null);
+  useEffect(() => { riderHistory().then((r) => { cacheSet('riderHistory', r.orders); setOrders(r.orders); }).catch(() => setOrders((prev) => prev ?? [])); }, []);
 
   return (
     <>

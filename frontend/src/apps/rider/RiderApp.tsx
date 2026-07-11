@@ -47,9 +47,10 @@ export function RiderApp() {
 
   return (
     <AppShell accent="rider">
-      {tab === 'jobs' && <Jobs />}
-      {tab === 'active' && <Active />}
-      {tab === 'earnings' && <Earnings />}
+      {/* Tabs stay mounted — switching hides/shows instead of destroying, so no refetch flash. */}
+      <div style={{ display: tab === 'jobs' ? undefined : 'none' }}><Jobs /></div>
+      <div style={{ display: tab === 'active' ? undefined : 'none' }}><Active /></div>
+      <div style={{ display: tab === 'earnings' ? undefined : 'none' }}><Earnings /></div>
       {tab === 'profile' && (
         profileView === 'settings' ? <Settings onBack={() => setProfileView(null)} />
           : profileView === 'history' ? <RideHistory onBack={() => setProfileView(null)} />

@@ -1,16 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
+import { cacheGet, cacheSet } from '../../../lib/cache';
 import { IconPin } from '../../../ui/icons';
 import { TrackMap } from '../../../ui/TrackMap';
 import { riderJobs, riderSetStatus, statusMeta, type Order } from '../../../lib/orders';
 import { postRiderLocation } from '../../../lib/tracking';
 
 export function Active() {
-  const [jobs, setJobs] = useState<Order[] | null>(null);
+  const [jobs, setJobs] = useState<Order[] | null>(() => cacheGet<Order[]>('riderActive') ?? null);
   const [busy, setBusy] = useState<string | null>(null);
   const [me, setMe] = useState<{ lat: number; lng: number } | null>(null);
   const lastPost = useRef(0);
 
-  const load = () => riderJobs().then((r) => setJobs(r.orders)).catch(() => setJobs([]));
+  const load = () => riderJobs().then((r) => { cacheSet('riderActive', r.orders); setJobs(r.orders); }).catch(() => setJobs((prev) => prev ?? []));
   useEffect(() => { load(); const t = setInterval(load, 6000); return () => clearInterval(t); }, []);
 
   // Share live GPS while on the Active screen so the customer can track the rider.

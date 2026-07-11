@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { cacheGet, cacheSet } from '../../../lib/cache';
 import { IconBell, IconPin, IconInbox } from '../../../ui/icons';
 import { setOnline as apiSetOnline, type Store } from '../../../lib/merchant';
 import { merchantOrders, type Order } from '../../../lib/orders';
@@ -11,7 +12,7 @@ export function Dashboard({ store, onEditLocation, onOpenSettings, onOpenOrders,
 
   useEffect(() => { setOnline(store.online); }, [store.online]);
   useEffect(() => {
-    const load = () => merchantOrders().then((r) => setOrders(r.orders)).catch(() => {});
+    const load = () => merchantOrders().then((r) => { cacheSet('merchantOrders', r.orders); setOrders(r.orders); }).catch(() => {});
     load();
     const t = setInterval(load, 8000);
     return () => clearInterval(t);

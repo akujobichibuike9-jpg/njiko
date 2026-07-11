@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { cacheGet, cacheSet } from '../../../lib/cache';
 import { IconInbox } from '../../../ui/icons';
 import { TopFilterNav } from '../../../ui/TopFilterNav';
 import { merchantOrders, setOrderStatus, orderEvents, statusMeta, groupOf, type Order, type OrderEvent } from '../../../lib/orders';
@@ -60,9 +61,9 @@ function OrderCard({ o, onAct }: { o: Order; onAct: (id: string, status: string)
 }
 
 export function Orders() {
-  const [orders, setOrders] = useState<Order[] | null>(null);
+  const [orders, setOrders] = useState<Order[] | null>(() => cacheGet<Order[]>('merchantOrders') ?? null);
   const [group, setGroup] = useState('live');
-  const load = () => merchantOrders().then((r) => setOrders(r.orders)).catch(() => setOrders((prev) => prev ?? []));
+  const load = () => merchantOrders().then((r) => { cacheSet('merchantOrders', r.orders); setOrders(r.orders); }).catch(() => setOrders((prev) => prev ?? []));
   useEffect(() => { load(); const t = setInterval(load, 5000); return () => clearInterval(t); }, []);
   async function act(id: string, status: string) { await setOrderStatus(id, status); load(); }
 

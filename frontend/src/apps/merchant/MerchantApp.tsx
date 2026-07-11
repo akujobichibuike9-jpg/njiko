@@ -55,10 +55,13 @@ export function MerchantApp() {
 
   return (
     <AppShell accent="merchant">
-      {tab === 'home' && <Dashboard store={store} onEditLocation={() => setEditingLocation(true)} onOpenSettings={() => setShowSettings(true)} onOpenOrders={() => setTab('orders')} onStoreChange={setStore} />}
-      {tab === 'orders' && <Orders />}
-      {tab === 'menu' && <Menu />}
-      {tab === 'earnings' && <Earnings />}
+      {/* Tabs stay mounted — switching hides/shows instead of destroying, so no refetch flash. */}
+      <div style={{ display: tab === 'home' ? undefined : 'none' }}>
+        <Dashboard store={store} onEditLocation={() => setEditingLocation(true)} onOpenSettings={() => setShowSettings(true)} onOpenOrders={() => setTab('orders')} onStoreChange={setStore} />
+      </div>
+      <div style={{ display: tab === 'orders' ? undefined : 'none' }}><Orders /></div>
+      <div style={{ display: tab === 'menu' ? undefined : 'none' }}><Menu /></div>
+      <div style={{ display: tab === 'earnings' ? undefined : 'none' }}><Earnings /></div>
       <BottomNav tabs={tabs} active={tab} onChange={setTab} />
     </AppShell>
   );

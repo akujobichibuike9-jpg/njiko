@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
+import { cacheGet, cacheSet } from '../../../lib/cache';
 import { IconMenu } from '../../../ui/icons';
 import { listItems, createItem, toggleItem, deleteItem, uploadImage, type MenuItem } from '../../../lib/menu';
 
 export function Menu() {
-  const [items, setItems] = useState<MenuItem[] | null>(null);
+  const [items, setItems] = useState<MenuItem[] | null>(() => cacheGet<MenuItem[]>('merchantMenu') ?? null);
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
@@ -13,8 +14,8 @@ export function Menu() {
 
   useEffect(() => { load(); }, []);
   async function load() {
-    try { const { items } = await listItems(); setItems(items); }
-    catch { setItems([]); }
+    try { const { items } = await listItems(); cacheSet('merchantMenu', items); setItems(items); }
+    catch { setItems((prev) => prev ?? []); }
   }
 
   async function add() {
