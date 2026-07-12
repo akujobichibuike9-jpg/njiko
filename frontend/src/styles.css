@@ -575,3 +575,29 @@ body{background:#050708}
 .njk-install-go { border: none; border-radius: 12px; padding: 10px 16px; cursor: pointer; font-family: var(--disp); font-weight: 600; font-size: 13.5px; color: #04231a;
   background: linear-gradient(100deg, #A5CE3A, #7BA828); box-shadow: 0 8px 20px -8px rgba(165,206,58,.6); }
 .njk-install-x { border: none; background: none; color: #7c857f; font-size: 15px; cursor: pointer; padding: 6px; }
+
+/* rider: current leg / next stop bar under the map */
+.leg-bar { display: flex; align-items: center; gap: 12px; margin-top: 10px; padding: 12px 14px; border-radius: 15px;
+  background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.09); }
+.leg-dot { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; }
+.leg-dot.pickup { background: #2EE6C6; box-shadow: 0 0 0 4px rgba(46,230,198,.16); }
+.leg-dot.dropoff { background: #2FE082; box-shadow: 0 0 0 4px rgba(47,224,130,.16); }
+.leg-txt { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.leg-txt b { font-family: var(--disp); font-weight: 600; font-size: 13.5px; }
+.leg-txt span { font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.leg-eta { text-align: right; flex-shrink: 0; }
+.leg-eta b { display: block; font-family: var(--disp); font-weight: 700; font-size: 17px; color: var(--accent); }
+.leg-eta span { font-family: var(--mono); font-size: 10px; color: var(--muted); }
+
+/* rider: expandable map (pull open for a bigger screen, collapse the cards below) */
+.rmap { position: relative; height: 240px; border-radius: 18px; overflow: hidden; border: 1px solid var(--border);
+  transition: height .32s cubic-bezier(.22,1,.36,1); }
+.rmap.big { height: calc(100dvh - 210px); }
+.rmap-grip { position: absolute; left: 0; right: 0; bottom: 0; height: 26px; display: grid; place-items: center;
+  border: none; cursor: pointer; background: linear-gradient(to top, rgba(9,12,13,.72), transparent); }
+.rmap-grip span { width: 40px; height: 4px; border-radius: 99px; background: rgba(255,255,255,.5); display: block; }
+.leg-nav { display: flex; align-items: center; gap: 6px; flex-shrink: 0; border: none; cursor: pointer;
+  padding: 9px 13px; border-radius: 12px; font-family: var(--disp); font-weight: 600; font-size: 12.5px;
+  color: var(--acctxt); background: linear-gradient(100deg, var(--accent), var(--accent-deep));
+  box-shadow: 0 8px 20px -8px color-mix(in srgb, var(--accent) 70%, transparent); }
+.leg-nav:active { transform: translateY(1px); }

@@ -15,12 +15,16 @@ function dot(color: string, pulse = false) {
   return el;
 }
 
-export function TrackMap({ pickup, dropoff, rider, route }: {
+export function TrackMap({ pickup, dropoff, rider, route, fitKey }: {
   pickup?: Point; dropoff?: Point; rider?: { lat: number; lng: number } | null; route?: [number, number][] | null;
+  /** change this (e.g. order id + status) to deliberately re-frame the map */
+  fitKey?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const markers = useRef<maplibregl.Marker[]>([]);
+  const fittedFor = useRef<string | null>(null);   // which fitKey we've already framed
+  const userMoved = useRef(false);                  // once the user pans/zooms, stop auto-framing
 
   useEffect(() => {
     if (!ref.current) return;
@@ -54,15 +58,27 @@ export function TrackMap({ pickup, dropoff, rider, route }: {
       add(dropoff, '#2FE082');
       if (rider) add(rider as Point, '#FF8A3D', true);
       (route ?? []).forEach((c) => pts.push(c));
-      if (pts.length === 1) m.easeTo({ center: pts[0], zoom: 14, duration: 500 });
-      else if (pts.length > 1) {
-        const b = new maplibregl.LngLatBounds(pts[0], pts[0]);
-        pts.forEach((p) => b.extend(p));
-        m.fitBounds(b, { padding: { top: 70, bottom: 40, left: 50, right: 50 }, maxZoom: 15, duration: 600 });
+      // Frame the route ONCE per fitKey (order/leg). Re-fitting on every GPS tick was
+      // yanking the map back and fighting the user's zoom/pan.
+      const shouldFit = fittedFor.current !== (fitKey ?? 'default') && !userMoved.current;
+      if (shouldFit && pts.length) {
+        fittedFor.current = fitKey ?? 'default';
+        if (pts.length === 1) m.easeTo({ center: pts[0], zoom: 14, duration: 500 });
+        else {
+          const b = new maplibregl.LngLatBounds(pts[0], pts[0]);
+          pts.forEach((p) => b.extend(p));
+          m.fitBounds(b, { padding: { top: 70, bottom: 40, left: 50, right: 50 }, maxZoom: 15, duration: 600 });
+        }
       }
     };
+    // any deliberate pan/zoom by the user disables auto-framing for this session
+    if (!(m as any)._njkUserHooked) {
+      (m as any)._njkUserHooked = true;
+      m.on('dragstart', () => { userMoved.current = true; });
+      m.on('zoomstart', (e: any) => { if (e.originalEvent) userMoved.current = true; });
+    }
     if (m.isStyleLoaded()) apply(); else m.once('load', apply);
-  }, [pickup, dropoff, rider, route]);
+  }, [pickup, dropoff, rider, route, fitKey]);
 
   return <div ref={ref} style={{ width: '100%', height: '100%' }} />;
 }

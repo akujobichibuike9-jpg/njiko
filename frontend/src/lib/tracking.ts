@@ -8,9 +8,14 @@ export interface Tracking {
   pickup: Point;
   dropoff: Point;
   rider: { lat: number; lng: number; at: string; name: string | null } | null;
-  route: [number, number][] | null;   // [lng,lat] path from Geoapify
+  route: [number, number][] | null;   // [lng,lat] full journey path from Geoapify
   eta_min: number | null;
   distance_km: number | null;
+  // the leg the rider is currently driving: to the store before pickup, to the customer after
+  leg_to: 'pickup' | 'dropoff';
+  leg_route: [number, number][] | null;
+  leg_eta_min: number | null;
+  leg_distance_km: number | null;
 }
 
 export function getTracking(id: string) { return api<Tracking>(`/orders/${id}/tracking`); }
