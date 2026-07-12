@@ -188,10 +188,12 @@ export async function riderUpdateStatus(db: Db, riderId: string, orderId: string
 /* ---- live tracking + routing (Geoapify) ---- */
 const GEOAPIFY_KEY = process.env.GEOAPIFY_KEY ?? '';
 
-async function routeBetween(a: { lat: number | null; lng: number | null }, b: { lat: number | null; lng: number | null }) {
-  if (!GEOAPIFY_KEY || a.lat == null || b.lat == null) return null;
+// Routes through any number of waypoints, e.g. rider -> store -> customer.
+export async function routeVia(pts: { lat: number | null; lng: number | null }[]) {
+  if (!GEOAPIFY_KEY) return null;
+  if (pts.length < 2 || pts.some((p) => !p || p.lat == null || p.lng == null)) return null;
   try {
-    const url = `https://api.geoapify.com/v1/routing?waypoints=${a.lat},${a.lng}|${b.lat},${b.lng}&mode=drive&apiKey=${GEOAPIFY_KEY}`;
+    const url = `https://api.geoapify.com/v1/routing?waypoints=${pts.map((p) => `${p.lat},${p.lng}`).join('|')}&mode=drive&apiKey=${GEOAPIFY_KEY}`;
     const res = await fetch(url);
     if (!res.ok) return null;
     const j: any = await res.json();
@@ -204,6 +206,11 @@ async function routeBetween(a: { lat: number | null; lng: number | null }, b: { 
     return { coordinates: coords, durationMin: Math.max(1, Math.round((props.time ?? 0) / 60)), distanceKm: Number(((props.distance ?? 0) / 1000).toFixed(1)) };
   } catch { return null; }
 }
+// Two-point convenience wrapper (existing callers).
+export async function routeBetween(a: { lat: number | null; lng: number | null }, b: { lat: number | null; lng: number | null }) {
+  return routeVia([a, b]);
+}
+
 export async function setRiderLocation(db: Db, riderId: string, lat: number, lng: number) {
   await db.query(
     `INSERT INTO rider_locations (rider_id, lat, lng, updated_at) VALUES ($1,$2,$3, now())
@@ -227,8 +234,19 @@ export async function getTracking(db: Db, orderId: string) {
   const pickup = { lat: x.store_lat, lng: x.store_lng };
   const dropoff = { lat: x.dropoff_lat, lng: x.dropoff_lng };
   const rider = x.rider_id && x.rider_lat != null ? { lat: x.rider_lat, lng: x.rider_lng, at: x.rider_at, name: x.rider_name } : null;
-  const from = rider ?? pickup;
-  const route = await routeBetween(from, dropoff);
+  // Route the REAL journey:
+  //  - rider assigned but not yet collected  -> rider → store (pickup) → customer (dropoff)
+  //  - rider has picked up                   -> rider → customer
+  //  - no rider yet                          -> store → customer
+  const collected = x.status === 'picked_up' || x.status === 'delivered';
+  const waypoints = rider
+    ? (collected ? [rider, dropoff] : [rider, pickup, dropoff])
+    : [pickup, dropoff];
+  const route = await routeVia(waypoints);
+
+  // The leg the rider is currently driving (used by the rider app for its own ETA).
+  const legTo = rider ? (collected ? dropoff : pickup) : null;
+  const leg = rider && legTo ? await routeVia([rider, legTo]) : null;
   return {
     status: x.status,
     store_name: x.store_name,
@@ -237,5 +255,10 @@ export async function getTracking(db: Db, orderId: string) {
     route: route ? route.coordinates : null,
     eta_min: route ? route.durationMin : null,
     distance_km: route ? route.distanceKm : null,
+    // current leg for the rider: to the store before pickup, to the customer after
+    leg_to: collected ? 'dropoff' : 'pickup',
+    leg_route: leg ? leg.coordinates : null,
+    leg_eta_min: leg ? leg.durationMin : null,
+    leg_distance_km: leg ? leg.distanceKm : null,
   };
 }
