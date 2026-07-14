@@ -1,5 +1,4 @@
-import type { Pool } from 'pg';
-type Db = Pool;
+import type { Db } from '../../core/db';
 
 export async function ensureTables(db: Db) {
   await db.query(`

@@ -1,5 +1,4 @@
-import type { Pool } from 'pg';
-type Db = Pool;
+import type { Db } from '../../core/db';
 
 /* ────────────────────────────────────────────────────────────────
    DISPATCH ENGINE
@@ -278,34 +277,44 @@ export async function makeOffer(db: Db, order: any, riderId: string, meta: unkno
 
 /* GUARDED ACCEPT — the whole race condition lives here.
    Zero rows updated => the offer was already taken/expired. Never trust the client. */
+/* GUARDED ACCEPT — the whole race condition lives here.
+   The core Db exposes only query(), so instead of BEGIN/COMMIT we do the claim and the
+   assignment in ONE statement using data-modifying CTEs. Postgres runs it atomically:
+   the order is only assigned if the offer was still live AND the order still had no rider.
+   Zero rows => somebody/something beat you. Never trust the client. */
 export async function acceptOffer(db: Db, orderId: string, riderId: string) {
-  const client = await (db as any).connect();
-  try {
-    await client.query('BEGIN');
-    const off = await client.query(
-      `UPDATE offers SET status='ACCEPTED'
+  const { rows } = await db.query<{ claimed: number; assigned: number }>(
+    `WITH claim AS (
+       UPDATE offers SET status='ACCEPTED'
         WHERE order_id=$1 AND rider_id=$2 AND status='OFFERED' AND expires_at > now()
-        RETURNING id`, [orderId, riderId]);
-    if (!off.rowCount) { await client.query('ROLLBACK'); return { ok: false, error: 'Offer expired' }; }
+        RETURNING order_id
+     ), assign AS (
+       UPDATE orders SET rider_id=$2, status='assigned'
+        WHERE id=$1 AND rider_id IS NULL
+          AND status IN ('accepted','preparing','ready')
+          AND EXISTS (SELECT 1 FROM claim)
+        RETURNING id
+     )
+     SELECT (SELECT count(*)::int FROM claim) AS claimed,
+            (SELECT count(*)::int FROM assign) AS assigned`,
+    [orderId, riderId],
+  );
 
-    const ord = await client.query(
-      `UPDATE orders SET rider_id=$2, status='assigned'
-        WHERE id=$1 AND rider_id IS NULL AND status IN ('accepted','preparing','ready')
-        RETURNING id`, [orderId, riderId]);
-    if (!ord.rowCount) { await client.query('ROLLBACK'); return { ok: false, error: 'Order already taken' }; }
+  const r = rows[0];
+  if (!r || !r.claimed) return { ok: false, error: 'Offer expired' };
+  if (!r.assigned) {
+    // the offer was ours but the order had already gone — put the offer back to expired
+    await db.query(`UPDATE offers SET status='EXPIRED' WHERE order_id=$1 AND rider_id=$2`, [orderId, riderId]);
+    return { ok: false, error: 'Order already taken' };
+  }
 
-    await client.query(
-      `INSERT INTO rider_stats (rider_id, accepts, jobs_today) VALUES ($1,1,1)
-       ON CONFLICT (rider_id) DO UPDATE SET accepts = rider_stats.accepts + 1,
-         jobs_today = CASE WHEN rider_stats.day = current_date THEN rider_stats.jobs_today + 1 ELSE 1 END,
-         day = current_date`, [riderId]);
-    await client.query('COMMIT');
-    await logEvent(db, { order_id: orderId, rider_id: riderId, type: 'ACCEPTED' });
-    return { ok: true };
-  } catch (e) {
-    await client.query('ROLLBACK');
-    throw e;
-  } finally { client.release(); }
+  await db.query(
+    `INSERT INTO rider_stats (rider_id, accepts, jobs_today) VALUES ($1,1,1)
+     ON CONFLICT (rider_id) DO UPDATE SET accepts = rider_stats.accepts + 1,
+       jobs_today = CASE WHEN rider_stats.day = current_date THEN rider_stats.jobs_today + 1 ELSE 1 END,
+       day = current_date`, [riderId]);
+  await logEvent(db, { order_id: orderId, rider_id: riderId, type: 'ACCEPTED' });
+  return { ok: true };
 }
 
 export async function declineOffer(db: Db, orderId: string, riderId: string) {
