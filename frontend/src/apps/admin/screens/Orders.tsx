@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { allOrders, adminOrderDetail, type AdminOrder } from '../../../lib/admin';
+import { allOrders, adminOrderDetail, deliveryAudit, type AdminOrder, type DeliveryAudit } from '../../../lib/admin';
 import { statusMeta } from '../../../lib/orders';
 import { TrackMap } from '../../../ui/TrackMap';
 
@@ -16,9 +16,15 @@ export function Orders({ initialFilter, openId }: { initialFilter: string; openI
   const load = () => { setRows(null); allOrders(filter, q).then((r) => setRows(r.orders)).catch(() => setRows([])); };
   useEffect(() => { if (timer.current) clearTimeout(timer.current); timer.current = setTimeout(load, 250); }, [filter, q]);
   useEffect(() => { setFilter(initialFilter); }, [initialFilter]);
+  const [audit, setAudit] = useState<DeliveryAudit | null>(null);
   useEffect(() => { if (openId) adminOrderDetail(openId).then(setDetail).catch(() => {}); }, [openId]);
+  // pull the rider's ACTUAL travelled path + where they ended the ride
+  useEffect(() => {
+    if (!detail?.order?.id) { setAudit(null); return; }
+    deliveryAudit(detail.order.id).then(setAudit).catch(() => setAudit(null));
+  }, [detail?.order?.id]);
 
-  function open(id: string) { adminOrderDetail(id).then(setDetail).catch(() => {}); }
+  function open(id: string) { setAudit(null); adminOrderDetail(id).then(setDetail).catch(() => {}); }
 
   return (
     <>
@@ -65,9 +71,37 @@ export function Orders({ initialFilter, openId }: { initialFilter: string; openI
             <h2 style={{ fontFamily: 'var(--mono)', fontSize: 18 }}>#{detail.order.id.slice(0, 8)}</h2>
             <div style={{ height: 200, borderRadius: 14, overflow: 'hidden', border: '1px solid var(--line)', margin: '12px 0 16px' }}>
               {detail.tracking && (detail.tracking.pickup?.lat != null || detail.tracking.dropoff?.lat != null)
-                ? <TrackMap pickup={detail.tracking.pickup} dropoff={detail.tracking.dropoff} rider={detail.tracking.rider} route={detail.tracking.route} />
+                ? <TrackMap
+                    pickup={detail.tracking.pickup}
+                    dropoff={detail.tracking.dropoff}
+                    rider={detail.tracking.rider}
+                    route={detail.tracking.route}
+                    trail={audit?.trail ?? null}
+                    endedAt={audit?.order?.delivered_lat != null ? { lat: audit.order.delivered_lat, lng: audit.order.delivered_lng } : null}
+                    fitKey={detail.order.id}
+                  />
                 : <div style={{ height: '100%', display: 'grid', placeItems: 'center', color: '#8592a4', fontSize: 12 }}>No location data for this order</div>}
             </div>
+            {/* Proof of delivery: where the rider actually ended the ride. */}
+            {audit && audit.gap_m != null && (
+              <div className={`pod ${audit.flagged ? 'bad' : 'ok'}`}>
+                <div className="pod-head">
+                  <b>{audit.flagged ? 'Delivery flagged' : 'Delivery verified'}</b>
+                  <span>{audit.gap_m}m from customer</span>
+                </div>
+                <div className="pod-body">
+                  {audit.flagged
+                    ? `Ride ended ${audit.gap_m}m away — outside the ${audit.radius_m}m delivery radius.`
+                    : `Ride ended at the customer (within ${audit.radius_m}m).`}
+                  {' '}Rider drove {audit.travelled_km}km · {audit.points} GPS points.
+                </div>
+                <div className="pod-key">
+                  <span><i className="k-route" /> planned route</span>
+                  <span><i className="k-trail" /> actual path driven</span>
+                  <span><i className="k-end" /> ride ended here</span>
+                </div>
+              </div>
+            )}
             <div className="admin-kv"><span>Store</span><b>{detail.order.store_name ?? '—'}</b></div>
             <div className="admin-kv"><span>Customer</span><b>{detail.order.customer_name ?? '—'} {detail.order.customer_phone ? `· ${detail.order.customer_phone}` : ''}</b></div>
             <div className="admin-kv"><span>Rider</span><b>{detail.order.rider_name ?? '—'}</b></div>

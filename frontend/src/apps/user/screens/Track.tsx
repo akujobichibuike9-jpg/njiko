@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useState } from 'react';
+import { ChatPanel } from '../../../ui/ChatPanel';
 import { useParams, useNavigate } from 'react-router-dom';
 import { TrackMap } from '../../../ui/TrackMap';
 import { getTracking, etaMinutes, type Tracking } from '../../../lib/tracking';
@@ -13,6 +14,7 @@ function stepOf(status?: string) {
 }
 
 export function Track() {
+  const [chat, setChat] = useState(false);
   const { id } = useParams();
   const nav = useNavigate();
   const [t, setT] = useState<Tracking | null | undefined>(undefined);
@@ -86,15 +88,21 @@ export function Track() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, borderTop: '1px solid var(--border)', paddingTop: 16, marginTop: 16 }}>
             <div style={{ width: 46, height: 46, borderRadius: 14, background: 'linear-gradient(135deg,#FF8A3D,#F2671E)', display: 'grid', placeItems: 'center', fontFamily: 'var(--disp)', fontWeight: 700, fontSize: 19, color: '#2a1400' }}>{(t.rider.name ?? 'R').charAt(0).toUpperCase()}</div>
             <div style={{ flex: 1 }}><div style={{ fontFamily: 'var(--disp)', fontWeight: 600, fontSize: 15 }}>{t.rider.name ?? 'Your rider'}</div><div style={{ fontSize: 11.5, color: 'var(--muted)' }}>Courier</div></div>
-            <button style={{ width: 42, height: 42, borderRadius: '50%', border: 'none', background: 'linear-gradient(135deg,#2FE082,#14B86A)', color: '#04231a', display: 'grid', placeItems: 'center', cursor: 'pointer' }}>
+            <button
+              onClick={() => { if (t.rider?.phone) window.location.href = `tel:${t.rider.phone}`; }}
+              disabled={!t.rider?.phone}
+              title={t.rider?.phone ? `Call ${t.rider.phone}` : 'No number available'}
+              style={{ width: 42, height: 42, borderRadius: '50%', border: 'none', background: 'linear-gradient(135deg,#2FE082,#14B86A)', color: '#04231a', display: 'grid', placeItems: 'center', cursor: t.rider?.phone ? 'pointer' : 'not-allowed', opacity: t.rider?.phone ? 1 : .5 }}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 5c0 8 7 15 15 15l2-3-4-2-2 2c-3-1.5-6-4.5-7.5-7.5l2-2-2-4-3 2z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" /></svg>
             </button>
-            <button style={{ width: 42, height: 42, borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', display: 'grid', placeItems: 'center', cursor: 'pointer' }}>
+            <button onClick={() => setChat(true)}
+              style={{ width: 42, height: 42, borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', display: 'grid', placeItems: 'center', cursor: 'pointer' }}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 6a2 2 0 012-2h12a2 2 0 012 2v8a2 2 0 01-2 2H9l-4 3v-3H6a2 2 0 01-2-2V6z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" /></svg>
             </button>
           </div>
         )}
       </div>
+      {chat && id && <ChatPanel orderId={id} me="user" onClose={() => setChat(false)} />}
     </div>
   );
 }

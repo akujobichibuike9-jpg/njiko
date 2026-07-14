@@ -15,8 +15,12 @@ function dot(color: string, pulse = false) {
   return el;
 }
 
-export function TrackMap({ pickup, dropoff, rider, route, fitKey }: {
+export function TrackMap({ pickup, dropoff, rider, route, trail, endedAt, fitKey }: {
   pickup?: Point; dropoff?: Point; rider?: { lat: number; lng: number } | null; route?: [number, number][] | null;
+  /** the path the rider ACTUALLY drove (breadcrumbs) — drawn dashed in amber */
+  trail?: [number, number][] | null;
+  /** where the rider ended the ride — red if it wasn't at the customer */
+  endedAt?: Point | null;
   /** change this (e.g. order id + status) to deliberately re-frame the map */
   fitKey?: string;
 }) {
@@ -54,9 +58,19 @@ export function TrackMap({ pickup, dropoff, rider, route, fitKey }: {
         markers.current.push(new maplibregl.Marker({ element: dot(color, pulse) }).setLngLat([p.lng, p.lat]).addTo(m));
         pts.push([p.lng, p.lat]);
       };
+      // the actual travelled path (breadcrumbs)
+      if (m.getLayer('trail')) m.removeLayer('trail');
+      if (m.getSource('trail')) m.removeSource('trail');
+      if (trail && trail.length > 1) {
+        m.addSource('trail', { type: 'geojson', data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: trail } } as any });
+        m.addLayer({ id: 'trail', type: 'line', source: 'trail',
+          paint: { 'line-color': '#FFB020', 'line-width': 3, 'line-dasharray': [2, 1.6], 'line-opacity': 0.9 } });
+        trail.forEach((c) => pts.push(c));
+      }
       add(pickup, '#2EE6C6');
       add(dropoff, '#2FE082');
       if (rider) add(rider as Point, '#FF8A3D', true);
+      if (endedAt) add(endedAt, '#FF4D4D', true);   // where the ride was ended
       (route ?? []).forEach((c) => pts.push(c));
       // Frame the route ONCE per fitKey (order/leg). Re-fitting on every GPS tick was
       // yanking the map back and fighting the user's zoom/pan.
@@ -78,7 +92,7 @@ export function TrackMap({ pickup, dropoff, rider, route, fitKey }: {
       m.on('zoomstart', (e: any) => { if (e.originalEvent) userMoved.current = true; });
     }
     if (m.isStyleLoaded()) apply(); else m.once('load', apply);
-  }, [pickup, dropoff, rider, route, fitKey]);
+  }, [pickup, dropoff, rider, route, trail, endedAt, fitKey]);
 
   return <div ref={ref} style={{ width: '100%', height: '100%' }} />;
 }

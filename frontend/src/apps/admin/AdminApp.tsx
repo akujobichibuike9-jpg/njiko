@@ -6,6 +6,7 @@ import { Overview } from './screens/Overview';
 import { People } from './screens/People';
 import { Orders } from './screens/Orders';
 import { Fleet } from './screens/Fleet';
+import { Flagged } from './screens/Flagged';
 import { Settings } from './screens/Settings';
 
 export interface GoOpts { role?: string; filter?: string; openId?: string; }
@@ -15,6 +16,7 @@ const nav = [
   { id: 'people', label: 'People', icon: 'M12 12a4 4 0 100-8 4 4 0 000 8zM4 21a8 8 0 0116 0' },
   { id: 'orders', label: 'Orders', icon: 'M4 5h16M4 12h16M4 19h10' },
   { id: 'fleet', label: 'Live map', icon: 'M9 20l-5.5 2V6L9 4m0 16l6-2m-6 2V4m6 14l5.5 2V4L15 6m0 12V6m0 0L9 4' },
+  { id: 'flagged', label: 'Flagged', icon: 'M12 9v4m0 4h.01M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z' },
   { id: 'settings', label: 'Controls', icon: 'M12 15a3 3 0 100-6 3 3 0 000 6zM4 12h2m12 0h2M12 4v2m0 12v2' },
 ];
 const logoutIcon = 'M14 8V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2h6a2 2 0 002-2v-2M9 12h12m0 0l-3-3m3 3l-3 3';
@@ -61,6 +63,7 @@ export function AdminApp() {
         {tab === 'people' && <People initialRole={peopleRole} openId={openAcct} />}
         {tab === 'orders' && <Orders initialFilter={ordersFilter} openId={openOrder} />}
         {tab === 'fleet' && <Fleet />}
+        {tab === 'flagged' && <Flagged />}
         {tab === 'settings' && <Settings />}
       </main>
     </div>

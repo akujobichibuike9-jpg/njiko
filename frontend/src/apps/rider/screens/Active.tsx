@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
+import { ChatPanel } from '../../../ui/ChatPanel';
 import { cacheGet, cacheSet } from '../../../lib/cache';
 import { IconPin } from '../../../ui/icons';
 import { TrackMap } from '../../../ui/TrackMap';
 import { riderJobs, riderSetStatus, statusMeta, type Order } from '../../../lib/orders';
 import { postRiderLocation, getTracking, type Tracking } from '../../../lib/tracking';
+import { riderRoute, type RouteStop } from '../../../lib/dispatch';
 
 // Hand navigation off to Google Maps for the current leg — riders already know it,
 // it has live traffic, and it's better than anything we'd build in-app.
@@ -49,6 +51,17 @@ export function Active() {
   // then rider → customer once collected. Refreshes as the rider moves.
   const [trk, setTrk] = useState<Tracking | null>(null);
   const [mapBig, setMapBig] = useState(false);
+  const [chatFor, setChatFor] = useState<string | null>(null);
+
+  // When holding more than one job, the engine sequences the stops (a pickup always
+  // precedes its own dropoff) and this is the order the rider should drive them in.
+  const [stops, setStops] = useState<RouteStop[]>([]);
+  useEffect(() => {
+    const pull = () => riderRoute().then((r) => setStops(r.stops ?? [])).catch(() => {});
+    pull();
+    const t = setInterval(pull, 10000);
+    return () => clearInterval(t);
+  }, [jobs?.length]);
   useEffect(() => {
     if (!current) { setTrk(null); return; }
     let alive = true;
@@ -87,6 +100,9 @@ export function Active() {
                     {trk.leg_eta_min != null && (
                       <div className="leg-eta"><b>{trk.leg_eta_min}</b><span>min{trk.leg_distance_km != null ? ` · ${trk.leg_distance_km}km` : ''}</span></div>
                     )}
+                    <button className="leg-chat" onClick={() => setChatFor(current.id)} aria-label="Message customer">
+                      <svg viewBox="0 0 24 24" width="17" height="17" fill="none"><path d="M4 6a2 2 0 012-2h12a2 2 0 012 2v8a2 2 0 01-2 2H9l-4 3v-3H6a2 2 0 01-2-2V6z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round"/></svg>
+                    </button>
                     <button className="leg-nav" onClick={() => navigateTo(trk)} aria-label="Open directions">
                       <svg viewBox="0 0 24 24" width="17" height="17" fill="none"><path d="M12 2l9 20-9-5-9 5 9-20z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/></svg>
                       Navigate
@@ -94,6 +110,21 @@ export function Active() {
                   </div>
                 )}
               </>
+            )}
+            {!mapBig && stops.length > 2 && (
+              <div className="stops">
+                <div className="stops-h">Your route · {stops.length} stops</div>
+                {stops.map((st, i) => (
+                  <div className="stops-row" key={`${st.order_id}-${st.kind}`}>
+                    <span className="stops-n">{i + 1}</span>
+                    <span className={`leg-dot ${st.kind}`} />
+                    <div className="stops-txt">
+                      <b>{st.kind === 'pickup' ? `Pick up · ${st.name}` : `Deliver · ${st.name}`}</b>
+                      <span>{st.address}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
             {!mapBig && jobs.map((o) => {
               const s = statusMeta[o.status] ?? statusMeta.assigned;
@@ -116,6 +147,7 @@ export function Active() {
           </>
         )}
       </div>
+      {chatFor && <ChatPanel orderId={chatFor} me="rider" onClose={() => setChatFor(null)} />}
     </>
   );
 }

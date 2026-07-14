@@ -26,6 +26,7 @@ function OrderCard({ o, onAct }: { o: Order; onAct: (id: string, status: string)
         <div>
           <div style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--muted)' }}>#{o.id.slice(0, 8)}</div>
           <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 3 }}>{o.delivery_address ?? '—'}</div>
+          {o.note && <div className="note-flag"><b>Note</b> {o.note}</div>}
         </div>
         <span style={{ fontFamily: 'var(--mono)', fontSize: 10, fontWeight: 600, padding: '4px 9px', borderRadius: 999, background: s.bg, color: s.color }}>{s.label}</span>
       </div>

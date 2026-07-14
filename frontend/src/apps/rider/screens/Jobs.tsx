@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { OfferCard } from './OfferCard';
 import { cacheGet, cacheSet } from '../../../lib/cache';
 import { IconInbox } from '../../../ui/icons';
 import { availableJobs, acceptJob, type Order } from '../../../lib/orders';
@@ -21,6 +22,7 @@ export function Jobs() {
     <>
       <div className="m-header"><span className="page-title">Available jobs</span></div>
       <div className="m-body">
+        <OfferCard onAccepted={load} />
         <div className={`status-card ${online ? 'on' : ''}`} onClick={() => setOnline(!online)}>
           <span className="pulse" />
           <div>

@@ -8,6 +8,7 @@ export function CartPage() {
   const cart = useCart();
   const nav = useNavigate();
   const [placing, setPlacing] = useState(false);
+  const [note, setNote] = useState('');   // customer -> merchant
   const [msg, setMsg] = useState<string | null>(null);
 
   async function doCheckout() {
@@ -17,7 +18,7 @@ export function CartPage() {
       const { profile } = await getProfile();
       if (!profile?.address) { setMsg('Set a delivery address in Profile first.'); setPlacing(false); return; }
       const lines = cart.lines.map((l) => ({ itemId: l.itemId, qty: l.qty }));
-      await checkout(profile.address, lines);
+      await checkout(profile.address, lines, note.trim() || undefined);
       cart.clear();
       nav('/orders');
     } catch (e: any) {
@@ -69,6 +70,15 @@ export function CartPage() {
             <div className="cart-sub">Subtotal <b>₦{g.subtotal.toLocaleString()}</b></div>
           </div>
         ))}
+
+        {/* Anything the kitchen needs to know: "no pepper", "call at the gate" */}
+        <div className="note-box">
+          <label htmlFor="order-note">Note for the store <span>(optional)</span></label>
+          <textarea id="order-note" className="note-in" rows={2} maxLength={300}
+            placeholder="e.g. no pepper, extra sachet, call me at the gate…"
+            value={note} onChange={(e) => setNote(e.target.value)} />
+          <i>{note.length}/300 · sent to every store in this order</i>
+        </div>
 
         <div className="cart-total"><span>Total</span><b>₦{cart.total.toLocaleString()}</b></div>
         {msg && <div className="login-err" style={{ textAlign: 'center' }}>{msg}</div>}

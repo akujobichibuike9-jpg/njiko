@@ -41,3 +41,17 @@ export function fleet() { return api<{ riders: FleetRider[] }>('/admin/fleet'); 
 export async function platformStatus(): Promise<{ maintenance: boolean }> {
   try { const base = import.meta.env.VITE_API_URL || '/api'; const r = await fetch(`${base}/admin/status`); return await r.json(); } catch { return { maintenance: false }; }
 }
+
+/* ---- delivery audit: the rider's ACTUAL path + where they ended the ride ---- */
+export interface DeliveryAudit {
+  order: any;
+  trail: [number, number][];      // the path actually driven, [lng,lat]
+  points: number;
+  travelled_km: number;
+  ended_at: string | null;
+  gap_m: number | null;           // how far from the customer the ride was ended
+  flagged: boolean;
+  radius_m: number;
+}
+export function deliveryAudit(orderId: string) { return api<DeliveryAudit>(`/dispatch/audit/${orderId}`); }
+export function flaggedDeliveries() { return api<{ flagged: any[] }>('/dispatch/flagged'); }

@@ -7,7 +7,7 @@ export interface Tracking {
   delivery_address: string | null;
   pickup: Point;
   dropoff: Point;
-  rider: { lat: number; lng: number; at: string; name: string | null } | null;
+  rider: { lat: number; lng: number; at: string; name: string | null; phone: string | null } | null;
   route: [number, number][] | null;   // [lng,lat] full journey path from Geoapify
   eta_min: number | null;
   distance_km: number | null;
