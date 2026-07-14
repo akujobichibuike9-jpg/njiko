@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import jwt from 'jsonwebtoken';
 import type { AppModule } from '../../core/types';
+import { traceRider, verifyDelivery } from '../dispatch/service';
 import {
   ensureSchema, createFromCart, getCustomerOrders, getMerchantOrders, updateStatus,
   getAvailableJobs, getRiderJobs, getRiderHistory, acceptJob, riderUpdateStatus,
@@ -18,6 +19,7 @@ function requireAuth(req: any, res: any, next: any) {
 }
 
 const checkoutSchema = z.object({
+  note: z.string().max(300).optional(),          // customer -> merchant, e.g. "no pepper, call at gate"
   deliveryAddress: z.string().min(2),
   lines: z.array(z.object({ itemId: z.string().uuid(), qty: z.number().int().positive() })).min(1),
 });
@@ -32,7 +34,7 @@ const orders: AppModule = {
       const parsed = checkoutSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
       try {
-        const created = await createFromCart(db, req.account.sub, parsed.data.deliveryAddress, parsed.data.lines);
+        const created = await createFromCart(db, req.account.sub, parsed.data.deliveryAddress, parsed.data.lines, parsed.data.note);
         for (const o of created) await events.emit('order.placed', o);
         res.status(201).json({ orders: created });
       } catch (e: any) {
@@ -57,7 +59,12 @@ const orders: AppModule = {
     router.post('/rider-location', requireAuth, async (req: any, res) => {
       const lat = Number(req.body?.lat), lng = Number(req.body?.lng);
       if (!isFinite(lat) || !isFinite(lng)) return res.status(400).json({ error: 'lat/lng required' });
-      try { await setRiderLocation(db, req.account.sub, lat, lng); res.json({ ok: true }); }
+      try {
+        await setRiderLocation(db, req.account.sub, lat, lng);
+        // keep the full path per active order — rider_locations only holds the latest point
+        await traceRider(db, req.account.sub, lat, lng);
+        res.json({ ok: true });
+      }
       catch { res.status(503).json({ error: 'Could not update location' }); }
     });
     router.get('/rider-history', requireAuth, async (req: any, res) => {
@@ -107,8 +114,11 @@ const orders: AppModule = {
       try {
         const order = await riderUpdateStatus(db, req.account.sub, req.params.id, status);
         if (!order) return res.status(404).json({ error: 'Order not found' });
+        // Proof of delivery: capture where the rider actually stood when they ended the ride.
+        let proof: any = null;
+        if (status === 'delivered') proof = await verifyDelivery(db, req.params.id, req.account.sub);
         await events.emit(`order.${status}`, order);
-        res.json({ order });
+        res.json({ order, proof });
       } catch (e: any) { if (e.status) return res.status(e.status).json({ error: e.message }); res.status(503).json({ error: 'Could not update' }); }
     });
     router.patch('/:id/status', requireAuth, async (req: any, res) => {

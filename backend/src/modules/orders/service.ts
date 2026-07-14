@@ -68,7 +68,9 @@ async function attachItems(db: Db, orders: any[]) {
   return orders.map((o) => ({ ...o, items: items.filter((i) => i.order_id === o.id) }));
 }
 
-export async function createFromCart(db: Db, userId: string, deliveryAddress: string, lines: { itemId: string; qty: number }[]) {
+export async function createFromCart(db: Db, userId: string, deliveryAddress: string, lines: { itemId: string; qty: number }[], note?: string) {
+  // customer's note to the merchant (e.g. "no pepper", "call at the gate")
+  await db.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS note text`);
   if (!lines.length) throw Object.assign(new Error('Cart is empty'), { status: 400 });
   const ids = lines.map((l) => l.itemId);
   const items = (await db.query(
@@ -92,9 +94,9 @@ export async function createFromCart(db: Db, userId: string, deliveryAddress: st
     const subtotal = its.reduce((s, i) => s + i.price * i.qty, 0);
     const total = subtotal + DELIVERY_FEE;
     const o = (await db.query<Order>(
-      `INSERT INTO orders (user_id, store_id, status, subtotal, delivery_fee, total, delivery_address, payment_method, dropoff_lat, dropoff_lng)
-       VALUES ($1,$2,'placed',$3,$4,$5,$6,'cod',$7,$8) RETURNING *`,
-      [userId, storeId, subtotal, DELIVERY_FEE, total, deliveryAddress, dLat, dLng])).rows[0];
+      `INSERT INTO orders (user_id, store_id, status, subtotal, delivery_fee, total, delivery_address, payment_method, dropoff_lat, dropoff_lng, note)
+       VALUES ($1,$2,'placed',$3,$4,$5,$6,'cod',$7,$8,$9) RETURNING *`,
+      [userId, storeId, subtotal, DELIVERY_FEE, total, deliveryAddress, dLat, dLng, note ?? null])).rows[0];
     for (const i of its) {
       await db.query(`INSERT INTO order_items (order_id, name, price, qty, image_url) VALUES ($1,$2,$3,$4,$5)`, [o.id, i.name, i.price, i.qty, i.image_url]);
     }
@@ -223,7 +225,7 @@ export async function getTracking(db: Db, orderId: string) {
     SELECT o.id, o.status, o.rider_id, o.delivery_address, o.dropoff_lat, o.dropoff_lng,
            s.name AS store_name, s.lat AS store_lat, s.lng AS store_lng,
            rl.lat AS rider_lat, rl.lng AS rider_lng, rl.updated_at AS rider_at,
-           r.name AS rider_name
+           r.name AS rider_name, r.phone AS rider_phone
     FROM orders o
     LEFT JOIN merchant_stores s ON s.account_id = o.store_id
     LEFT JOIN rider_locations rl ON rl.rider_id = o.rider_id
@@ -233,7 +235,7 @@ export async function getTracking(db: Db, orderId: string) {
   if (!x) return null;
   const pickup = { lat: x.store_lat, lng: x.store_lng };
   const dropoff = { lat: x.dropoff_lat, lng: x.dropoff_lng };
-  const rider = x.rider_id && x.rider_lat != null ? { lat: x.rider_lat, lng: x.rider_lng, at: x.rider_at, name: x.rider_name } : null;
+  const rider = x.rider_id && x.rider_lat != null ? { lat: x.rider_lat, lng: x.rider_lng, at: x.rider_at, name: x.rider_name, phone: x.rider_phone } : null;
   // Route the REAL journey:
   //  - rider assigned but not yet collected  -> rider → store (pickup) → customer (dropoff)
   //  - rider has picked up                   -> rider → customer
