@@ -20,6 +20,9 @@ function requireAuth(req: any, res: any, next: any) {
 
 const checkoutSchema = z.object({
   note: z.string().max(300).optional(),          // customer -> merchant, e.g. "no pepper, call at gate"
+  // Optional precise delivery pin. If absent we fall back to the saved profile location.
+  dropLat: z.number().min(-90).max(90).optional(),
+  dropLng: z.number().min(-180).max(180).optional(),
   deliveryAddress: z.string().min(2),
   lines: z.array(z.object({ itemId: z.string().uuid(), qty: z.number().int().positive() })).min(1),
 });
@@ -34,7 +37,7 @@ const orders: AppModule = {
       const parsed = checkoutSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
       try {
-        const created = await createFromCart(db, req.account.sub, parsed.data.deliveryAddress, parsed.data.lines, parsed.data.note);
+        const created = await createFromCart(db, req.account.sub, parsed.data.deliveryAddress, parsed.data.lines, parsed.data.note, parsed.data.dropLat, parsed.data.dropLng);
         for (const o of created) await events.emit('order.placed', o);
         res.status(201).json({ orders: created });
       } catch (e: any) {

@@ -68,9 +68,15 @@ async function attachItems(db: Db, orders: any[]) {
   return orders.map((o) => ({ ...o, items: items.filter((i) => i.order_id === o.id) }));
 }
 
-export async function createFromCart(db: Db, userId: string, deliveryAddress: string, lines: { itemId: string; qty: number }[], note?: string) {
+export async function createFromCart(
+  db: Db, userId: string, deliveryAddress: string, lines: { itemId: string; qty: number }[],
+  note?: string, dropLat?: number, dropLng?: number,
+) {
   // customer's note to the merchant (e.g. "no pepper", "call at the gate")
   await db.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS note text`);
+  // where the dropoff coords came from — the fraud check trusts a dropped pin far more
+  // than a geocoded street address, which in Owerri can be hundreds of metres out.
+  await db.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS dropoff_source text DEFAULT 'profile'`);
   if (!lines.length) throw Object.assign(new Error('Cart is empty'), { status: 400 });
   const ids = lines.map((l) => l.itemId);
   const items = (await db.query(
@@ -86,17 +92,20 @@ export async function createFromCart(db: Db, userId: string, deliveryAddress: st
   if (!groups.size) throw Object.assign(new Error('No valid items in cart'), { status: 400 });
 
   const prof = await db.query<{ lat: number | null; lng: number | null }>(`SELECT lat, lng FROM user_profiles WHERE account_id = $1`, [userId]);
-  const dLat = prof.rows[0]?.lat ?? null;
-  const dLng = prof.rows[0]?.lng ?? null;
+  // A pin dropped at checkout beats the saved profile location every time.
+  const pinned = dropLat != null && dropLng != null;
+  const dLat = pinned ? dropLat! : (prof.rows[0]?.lat ?? null);
+  const dLng = pinned ? dropLng! : (prof.rows[0]?.lng ?? null);
+  const dSource = pinned ? 'pin' : 'profile';
 
   const created: Order[] = [];
   for (const [storeId, its] of groups) {
     const subtotal = its.reduce((s, i) => s + i.price * i.qty, 0);
     const total = subtotal + DELIVERY_FEE;
     const o = (await db.query<Order>(
-      `INSERT INTO orders (user_id, store_id, status, subtotal, delivery_fee, total, delivery_address, payment_method, dropoff_lat, dropoff_lng, note)
-       VALUES ($1,$2,'placed',$3,$4,$5,$6,'cod',$7,$8,$9) RETURNING *`,
-      [userId, storeId, subtotal, DELIVERY_FEE, total, deliveryAddress, dLat, dLng, note ?? null])).rows[0];
+      `INSERT INTO orders (user_id, store_id, status, subtotal, delivery_fee, total, delivery_address, payment_method, dropoff_lat, dropoff_lng, note, dropoff_source)
+       VALUES ($1,$2,'placed',$3,$4,$5,$6,'cod',$7,$8,$9,$10) RETURNING *`,
+      [userId, storeId, subtotal, DELIVERY_FEE, total, deliveryAddress, dLat, dLng, note ?? null, dSource])).rows[0];
     for (const i of its) {
       await db.query(`INSERT INTO order_items (order_id, name, price, qty, image_url) VALUES ($1,$2,$3,$4,$5)`, [o.id, i.name, i.price, i.qty, i.image_url]);
     }

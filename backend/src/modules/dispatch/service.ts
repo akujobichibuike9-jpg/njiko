@@ -468,8 +468,17 @@ export async function ensureTraceTables(db: Db) {
   `);
 }
 
-// How far from the customer a "delivered" tap is still believable.
-export const DELIVERY_RADIUS_M = 150;
+/* How far from the customer a "delivered" tap is still believable.
+   This depends entirely on how good the customer's coordinates are:
+   - 'pin'     → they dragged a pin onto their gate. Trustworthy. Tight radius.
+   - 'profile' → saved location, possibly a geocoded street address, which in
+                 Owerri can be hundreds of metres off. Flagging a rider on that
+                 basis would accuse honest people, so we are far more forgiving. */
+export const DELIVERY_RADIUS_M = 150;          // pinned drop-off
+export const DELIVERY_RADIUS_LOOSE_M = 600;    // unverified / geocoded address
+export function radiusFor(source?: string | null) {
+  return source === 'pin' ? DELIVERY_RADIUS_M : DELIVERY_RADIUS_LOOSE_M;
+}
 
 // Append a breadcrumb for every active order this rider is carrying.
 export async function traceRider(db: Db, riderId: string, lat: number, lng: number) {
@@ -486,7 +495,7 @@ export async function traceRider(db: Db, riderId: string, lat: number, lng: numb
    they ended the ride somewhere they shouldn't have. */
 export async function verifyDelivery(db: Db, orderId: string, riderId: string) {
   const { rows } = await db.query(
-    `SELECT o.dropoff_lat, o.dropoff_lng, rl.lat, rl.lng, rl.updated_at
+    `SELECT o.dropoff_lat, o.dropoff_lng, o.dropoff_source, rl.lat, rl.lng, rl.updated_at
        FROM orders o LEFT JOIN rider_locations rl ON rl.rider_id = $2
       WHERE o.id = $1`, [orderId, riderId]);
   const r = rows[0];
@@ -497,9 +506,11 @@ export async function verifyDelivery(db: Db, orderId: string, riderId: string) {
     { lat: Number(r.dropoff_lat), lng: Number(r.dropoff_lng) },
   );
   const gap_m = Math.round(gapKm * 1000);
+  const radius = radiusFor(r.dropoff_source);
   const stale = r.updated_at ? (Date.now() - new Date(r.updated_at).getTime()) > 120000 : true;
-  // Flag if they were far from the customer, OR their GPS went dark before completing.
-  const flagged = gap_m > DELIVERY_RADIUS_M || stale;
+  // Only flag on distance we can actually trust. A rider must never be accused
+  // because the CUSTOMER's address was vague.
+  const flagged = gap_m > radius || stale;
 
   await db.query(
     `UPDATE orders SET delivered_lat=$2, delivered_lng=$3, delivered_gap_m=$4, delivery_flagged=$5 WHERE id=$1`,
@@ -510,7 +521,7 @@ export async function verifyDelivery(db: Db, orderId: string, riderId: string) {
                     ON CONFLICT (rider_id) DO UPDATE SET late = rider_stats.late + 1`, [riderId]);
     await logEvent(db, {
       order_id: orderId, rider_id: riderId, type: 'ACTUAL', reason: 'DELIVERY_OUT_OF_RANGE',
-      meta: { gap_m, radius_m: DELIVERY_RADIUS_M, gps_stale: stale },
+      meta: { gap_m, radius_m: radius, source: r.dropoff_source, gps_stale: stale },
     });
   }
   return { gap_m, flagged };
@@ -520,7 +531,7 @@ export async function verifyDelivery(db: Db, orderId: string, riderId: string) {
 export async function deliveryAudit(db: Db, orderId: string) {
   const { rows: ord } = await db.query(
     `SELECT o.id, o.status, o.delivered_lat, o.delivered_lng, o.delivered_gap_m, o.delivery_flagged,
-            o.dropoff_lat, o.dropoff_lng, o.delivery_address,
+            o.dropoff_lat, o.dropoff_lng, o.delivery_address, o.dropoff_source,
             s.lat AS store_lat, s.lng AS store_lng, s.name AS store_name,
             a.name AS rider_name, a.phone AS rider_phone, o.rider_id
        FROM orders o
@@ -550,6 +561,7 @@ export async function deliveryAudit(db: Db, orderId: string) {
     ended_at: trail.length ? trail[trail.length - 1].at : null,
     gap_m: ord[0].delivered_gap_m,
     flagged: ord[0].delivery_flagged,
-    radius_m: DELIVERY_RADIUS_M,
+    radius_m: radiusFor(ord[0].dropoff_source),
+    dropoff_source: ord[0].dropoff_source,   // 'pin' = customer confirmed the spot
   };
 }
