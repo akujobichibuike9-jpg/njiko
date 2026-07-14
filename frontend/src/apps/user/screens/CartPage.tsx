@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { PinDrop } from '../../../ui/PinDrop';
 import { useNavigate, Link } from 'react-router-dom';
 import { useCart } from '../CartContext';
 import { getProfile } from '../../../lib/user';
@@ -9,6 +10,9 @@ export function CartPage() {
   const nav = useNavigate();
   const [placing, setPlacing] = useState(false);
   const [note, setNote] = useState('');   // customer -> merchant
+  // Optional precise drop-off. If they don't drop a pin we use their saved location.
+  const [pin, setPin] = useState<{ lat: number; lng: number } | null>(null);
+  const [picking, setPicking] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
   async function doCheckout() {
@@ -18,7 +22,7 @@ export function CartPage() {
       const { profile } = await getProfile();
       if (!profile?.address) { setMsg('Set a delivery address in Profile first.'); setPlacing(false); return; }
       const lines = cart.lines.map((l) => ({ itemId: l.itemId, qty: l.qty }));
-      await checkout(profile.address, lines, note.trim() || undefined);
+      await checkout(profile.address, lines, note.trim() || undefined, pin);
       cart.clear();
       nav('/orders');
     } catch (e: any) {
@@ -71,6 +75,19 @@ export function CartPage() {
           </div>
         ))}
 
+        {/* A dropped pin beats a typed address — especially where streets aren't well mapped. */}
+        <div className={`pin-row ${pin ? 'set' : ''}`}>
+          <span className="pin-ico">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none"><path d="M12 21s7-6.3 7-11a7 7 0 10-14 0c0 4.7 7 11 7 11z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round"/><circle cx="12" cy="10" r="2.4" stroke="currentColor" strokeWidth="1.7"/></svg>
+          </span>
+          <div className="pin-txt">
+            <b>{pin ? 'Delivery pin set' : 'Drop a pin for exact delivery'}</b>
+            <span>{pin ? `${pin.lat.toFixed(5)}, ${pin.lng.toFixed(5)} — rider routes here` : 'Optional. Otherwise we use your saved address.'}</span>
+          </div>
+          <button className="pin-btn" onClick={() => setPicking(true)}>{pin ? 'Change' : 'Drop pin'}</button>
+          {pin && <button className="pin-clear" onClick={() => setPin(null)} aria-label="Remove pin">✕</button>}
+        </div>
+
         {/* Anything the kitchen needs to know: "no pepper", "call at the gate" */}
         <div className="note-box">
           <label htmlFor="order-note">Note for the store <span>(optional)</span></label>
@@ -86,6 +103,14 @@ export function CartPage() {
           Each store is prepared, delivered and paid separately. Payment: cash on delivery for now.
         </p>
       </div>
+
+      {picking && (
+        <PinDrop
+          start={pin ?? (profile?.lat != null && profile?.lng != null ? { lat: profile.lat, lng: profile.lng } : null)}
+          onConfirm={(p) => { setPin(p); setPicking(false); }}
+          onClose={() => setPicking(false)}
+        />
+      )}
 
       <div className="checkout-bar">
         <button className="dbtn" onClick={doCheckout} disabled={placing}>

@@ -29,8 +29,16 @@ export function groupOf(status: string): 'live' | 'delivered' | 'cancelled' {
   return 'live';
 }
 
-export function checkout(deliveryAddress: string, lines: { itemId: string; qty: number }[], note?: string) {
-  return api<{ orders: Order[] }>('/orders/checkout', { method: 'POST', body: JSON.stringify({ deliveryAddress, lines, note }) });
+export function checkout(
+  deliveryAddress: string,
+  lines: { itemId: string; qty: number }[],
+  note?: string,
+  pin?: { lat: number; lng: number } | null,
+) {
+  return api<{ orders: Order[] }>('/orders/checkout', {
+    method: 'POST',
+    body: JSON.stringify({ deliveryAddress, lines, note, dropLat: pin?.lat, dropLng: pin?.lng }),
+  });
 }
 export function customerOrders() { return api<{ orders: Order[] }>('/orders/customer'); }
 export function merchantOrders() { return api<{ orders: Order[] }>('/orders/merchant'); }
